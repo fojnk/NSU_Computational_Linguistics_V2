@@ -11,11 +11,8 @@ class TestOntologyRepository(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Подключение к базе (замени логин/пароль при необходимости)
         cls.neo = Neo4jRepository(uri, user, password)
         cls.repo = OntologyRepository(cls.neo)
-
-        # Очистим базу перед тестами
         cls.neo.run_custom_query("MATCH (n) DETACH DELETE n")
 
     @classmethod
