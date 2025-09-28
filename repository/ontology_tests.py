@@ -45,35 +45,15 @@ class TestOntologyRepository(unittest.TestCase):
         self.repo.delete_class(c1["uri"])
         self.assertIsNone(self.repo.get_class(c1["uri"]))
 
-    def test_object_crud(self):
-        # Создание класса
-        cls_node = self.repo.create_class("Car", "Vehicle")
-
-        # Создание объекта
-        obj = self.repo.create_object(cls_node["uri"], "My Tesla", "Electric car")
-        self.assertIn("uri", obj)
-
-        # Получение объекта
-        got = self.repo.get_object(obj["uri"])
-        self.assertEqual(got["properties"]["title"], "My Tesla")
-
-        # Обновление объекта
-        updated = self.repo.update_object(obj["uri"], description="Updated description")
-        self.assertEqual(updated["properties"]["description"], "Updated description")
-
-        # Удаление объекта
-        self.repo.delete_object(obj["uri"])
-        self.assertIsNone(self.repo.get_object(obj["uri"]))
-
     def test_attributes_and_signature(self):
-        # Создаем класс
+        # Создаем класс Book
         cls_node = self.repo.create_class("Book", "Readable item")
 
         # Добавляем DatatypeProperty
-        dp = self.repo.add_class_attribue(cls_node["uri"], "title")
+        dp = self.repo.add_class_attribute(cls_node["uri"], "title")
         self.assertEqual(dp["properties"]["title"], "title")
 
-        # Создаем связанный класс
+        # Создаем связанный класс Author
         c2 = self.repo.create_class("Author", "Writer of books")
 
         # Добавляем ObjectProperty
@@ -86,9 +66,63 @@ class TestOntologyRepository(unittest.TestCase):
         self.assertTrue(any(f["title"] == "WRITTEN_BY" for f in sig["object_properties"]))
 
         # Удаление DatatypeProperty
-        self.repo.delete_class_attribue(cls_node["uri"], "title")
+        self.repo.delete_class_attribute(cls_node["uri"], "title")
         sig2 = self.repo.collect_signature(cls_node["uri"])
         self.assertFalse(any(f["title"] == "title" for f in sig2["datatype_properties"]))
+
+    def test_object_crud_with_properties(self):
+        # Создаем класс Car
+        car_cls = self.repo.create_class("Car", "Vehicle")
+        self.repo.add_class_attribute(car_cls["uri"], "model")
+        self.repo.add_class_attribute(car_cls["uri"], "year")
+
+        # Создаем объект с полями
+        obj = self.repo.create_object(
+            car_cls["uri"],
+            properties={"title": "Tesla", "description": "Electric", "model": "S", "year": 2022}
+        )
+        self.assertIn("uri", obj)
+
+        # Проверяем базовые свойства
+        got = self.repo.get_object(obj["uri"])
+        self.assertEqual(got["properties"]["title"], "Tesla")
+
+        # Collect signature проверяет наличие полей
+        sig = self.repo.collect_signature(car_cls["uri"])
+        self.assertTrue(any(f["title"] == "model" for f in sig["datatype_properties"]))
+        self.assertTrue(any(f["title"] == "year" for f in sig["datatype_properties"]))
+
+        # Обновление объекта
+        updated = self.repo.update_object(obj["uri"], {"description": "Updated"})
+        self.assertEqual(updated["properties"]["description"], "Updated")
+
+        # Удаление объекта
+        self.repo.delete_object(obj["uri"])
+        self.assertIsNone(self.repo.get_object(obj["uri"]))
+
+    def test_object_with_relations(self):
+        # Создаем класс City
+        city_cls = self.repo.create_class("City", "Place where people live")
+        self.repo.add_class_attribute(city_cls["uri"], "name")
+
+        # Создаем класс Person
+        person_cls = self.repo.create_class("Person", "A human")
+        self.repo.add_class_object_attribute(person_cls["uri"], "LIVES_IN", city_cls["uri"])
+
+        # Создаем объект City
+        moscow = self.repo.create_object(city_cls["uri"], {"title": "Moscow", "name": "Moscow"})
+
+        # Создаем объект Person с relation -> City
+        alex = self.repo.create_object(
+            person_cls["uri"],
+            properties={"title": "Alex"},
+            relations={"LIVES_IN": moscow["uri"]}
+        )
+        self.assertIn("uri", alex)
+
+        # Проверка объекта
+        got = self.repo.get_object(alex["uri"])
+        self.assertEqual(got["properties"]["title"], "Alex")
 
 
 if __name__ == "__main__":
